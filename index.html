@@ -229,6 +229,7 @@ let gravity, flapPower, pipeSpeed, pipeGap, pipeWidth, birdRadius;
 let currentDifficulty = 'normal';
 let particles = [];
 let clouds = [];
+let lastTopHeight = null; // Permet de lisser la hauteur entre 2 tuyaux consécutifs
 
 let myPseudo = localStorage.getItem('flappyPseudo') || 'Joueur';
 document.addEventListener("DOMContentLoaded", () => {
@@ -303,6 +304,7 @@ function initGame(diff = 'normal') {
     score = 0;
     frameCount = 0;
     particles = [];
+    lastTopHeight = null;
     gameState = 'play';
     
     gravity = height * 0.00045 * d.gravityMult;
@@ -382,7 +384,21 @@ function goToMenu() {
 function spawnPipe(topHeight = null) {
   const minTop = height * 0.12;
   const maxTop = height - pipeGap - height * 0.18;
-  const tHeight = topHeight !== null ? topHeight : (minTop + Math.random() * Math.max(50, maxTop - minTop));
+  
+  let tHeight;
+  if (topHeight !== null) {
+    tHeight = topHeight;
+  } else {
+    // Si aucun tuyau précédent, on initialise aléatoirement, sinon on lisse l'écart de hauteur pour rester accessible (max +/- 110px de variation)
+    if (lastTopHeight === null) {
+      tHeight = minTop + Math.random() * Math.max(50, maxTop - minTop);
+    } else {
+      const maxVariation = height * 0.14; 
+      let delta = (Math.random() - 0.5) * (maxVariation * 2);
+      tHeight = Math.max(minTop, Math.min(maxTop, lastTopHeight + delta));
+    }
+    lastTopHeight = tHeight;
+  }
   
   pipes.push({
     x: width + 20,
@@ -473,7 +489,6 @@ function gameOver() {
     waitEl.innerHTML = '💥 Game Over ! En attente de la fin de manche...<br>' +
       '<button onclick="quitMultiGame()" style="margin-top:6px; padding:6px 12px; background:#e74c3c; color:white; border:none; border-radius:6px; font-weight:700; cursor:pointer; pointer-events:auto;">🚪 Quitter la partie</button>';
     
-    // Vérifier si tout le monde est mort pour déclencher l'affichage du classement de manche
     checkRoundOver();
     return;
   }
@@ -490,23 +505,19 @@ function gameOver() {
 }
 
 function checkRoundOver() {
-  // Collecter l'état de tous les joueurs
   let allDead = (bird === null);
   Object.values(otherBirds).forEach(ob => {
     if (ob.alive !== false) allDead = false;
   });
 
   if (allDead && isHost) {
-    // L'hôte calcule le classement de la manche et le score cumulé général
     let roundResults = [{ name: myPseudo, score: score }];
     Object.values(otherBirds).forEach(ob => {
       roundResults.push({ name: ob.pseudo || 'Joueur', score: ob.score || 0 });
     });
 
-    // Tri de la manche actuelle
     roundResults.sort((a, b) => b.score - a.score);
 
-    // Mettre à jour le cumul général
     roundResults.forEach(r => {
       generalScores[r.name] = (generalScores[r.name] || 0) + r.score;
     });
@@ -514,7 +525,6 @@ function checkRoundOver() {
     let generalRanking = Object.entries(generalScores).map(([name, total]) => ({ name, total }));
     generalRanking.sort((a, b) => b.total - a.total);
 
-    // Diffuser à tous les participants
     const packet = { type: 'roundOver', roundResults, generalRanking };
     broadcast(packet);
     showRoundRanking(roundResults, generalRanking);
@@ -560,7 +570,6 @@ function showRoundRanking(roundResults, generalRanking) {
 }
 
 function quitMultiGame() {
-  // Afficher le bilan général final pour le joueur qui quitte
   let finalRanking = Object.entries(generalScores).map(([name, total]) => ({ name, total }));
   finalRanking.sort((a, b) => b.total - a.total);
 
@@ -582,7 +591,6 @@ function quitMultiGame() {
 
   modal.innerHTML = html;
   
-  // Notifier les autres si on quitte
   if (clientConn && clientConn.open) {
     clientConn.send({ type: 'playerLeft', pseudo: myPseudo });
   }
@@ -797,7 +805,7 @@ document.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', resize);
 
-// ===== MULTIJOUEUR (Classements + Scores Cumulés + Quitter) =====
+// ===== MULTIJOUEUR =====
 let peer = null;
 let connections = [];
 let isHost = false;
@@ -806,7 +814,7 @@ let otherBirds = {};
 let otherPseudos = {};
 let multiMode = false;
 let clientConn = null;
-let generalScores = {}; // { pseudo: scoreTotal }
+let generalScores = {};
 const birdColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e84393', '#00cec9'];
 
 function showMultiMenu() {
