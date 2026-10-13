@@ -176,19 +176,27 @@
     <button class="diff-btn" id="hard" onclick="initGame('hard')">🔴 Difficile</button>
     <button class="diff-btn" id="multiBtn" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7);">👥 Multijoueur</button>
   </div>
-  <div id="multiMenu" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.9); padding:30px; border-radius:20px; text-align:center; pointer-events:auto; z-index:25;">
-    <h2 style="color:white; margin-bottom:16px;">Multijoueur</h2>
+  <div id="multiMenu" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.9); padding:25px; border-radius:20px; text-align:center; pointer-events:auto; z-index:25; width:90%; max-width:340px;">
+    <h2 style="color:white; margin-bottom:12px; font-size:22px;">Multijoueur (Max 8)</h2>
     <button class="diff-btn" onclick="hostGame()" style="background:#2ecc71;">Héberger une partie</button>
-    <div id="roomCodeDisplay" style="color:#f4d03f; font-size:24px; margin:12px 0; display:none;"></div>
-    <input id="joinCodeInput" placeholder="Code de la partie" style="padding:10px; margin:10px 0; border-radius:8px; border:none; width:180px; font-size:16px;">
+    <div id="roomCodeDisplay" style="color:#f4d03f; font-size:20px; margin:8px 0; display:none;"></div>
+    <input id="joinCodeInput" placeholder="Code de la partie" style="padding:10px; margin:8px 0; border-radius:8px; border:none; width:180px; font-size:16px; text-align:center;">
     <button class="diff-btn" onclick="joinGame()" style="background:#3498db;">Rejoindre</button>
-    <button class="diff-btn" onclick="backToMainMenu()" style="background:#636e72; margin-top:10px;">Retour</button>
-    <div id="playersList" style="color:white; margin-top:12px; font-size:14px;"></div>
-    <div id="startButtons" style="margin-top:16px; display:none;">
-      <p style="color:#aaa; font-size:14px;">Lancer la partie :</p>
-      <button class="diff-btn" onclick="startMultiGame('easy')" style="background:#2ecc71;">Facile</button>
-      <button class="diff-btn" onclick="startMultiGame('normal')" style="background:#3498db;">Normal</button>
-      <button class="diff-btn" onclick="startMultiGame('hard')" style="background:#e74c3c;">Difficile</button>
+    <button class="diff-btn" onclick="backToMainMenu()" style="background:#636e72; margin-top:8px;">Retour</button>
+    
+    <!-- Liste détaillée des joueurs connectés dans le salon -->
+    <div style="margin-top:12px; max-height:120px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:8px; padding:8px;">
+      <p style="color:#aaa; font-size:13px; margin-bottom:4px;">Joueurs dans le salon :</p>
+      <ul id="playersNamesList" style="color:white; font-size:14px; list-style-type:none; padding:0;"></ul>
+    </div>
+
+    <div id="startButtons" style="margin-top:12px; display:none;">
+      <p style="color:#f4d03f; font-size:13px; margin-bottom:6px;">Lancer la partie :</p>
+      <div style="display:flex; gap:6px; justify-content:center;">
+        <button class="diff-btn" onclick="startMultiGame('easy')" style="padding:10px; font-size:14px; background:#2ecc71; margin:0;">Facile</button>
+        <button class="diff-btn" onclick="startMultiGame('normal')" style="padding:10px; font-size:14px; background:#3498db; margin:0;">Normal</button>
+        <button class="diff-btn" onclick="startMultiGame('hard')" style="padding:10px; font-size:14px; background:#e74c3c; margin:0;">Difficile</button>
+      </div>
     </div>
   </div>
   <div id="gameOver">
@@ -386,8 +394,6 @@ function checkCollision() {
 }
 
 function update(delta = 1) {
-  // En mode multijoueur, même si le joueur a perdu (gameState === 'waiting' ou 'spectate'),
-  // le monde (tuyaux, décors) continue de défiler pour qu'il puisse voir les autres joueurs.
   if (gameState !== 'play' && !(multiMode && (gameState === 'waiting' || gameState === 'spectate'))) return;
 
   if (bird && gameState === 'play') {
@@ -437,18 +443,18 @@ function update(delta = 1) {
 function gameOver() {
   if (multiMode) {
     gameState = 'waiting';
-    bird = null; // L'oiseau disparaît du jeu physique local
-    broadcast({ type: 'playerDied', from: peer ? peer.id : 'local', alive: false });
+    bird = null;
+    broadcast({ type: 'playerDied', from: peer ? peer.id : 'local', alive: false, score: score });
     
     let waitEl = document.getElementById('waitingMsg');
     if (!waitEl) {
       waitEl = document.createElement('div');
       waitEl.id = 'waitingMsg';
-      waitEl.style.cssText = 'position:absolute; top:20px; left:50%; transform:translateX(-50%); color:white; font-size:18px; text-align:center; z-index:25; pointer-events:auto; background:rgba(0,0,0,0.7); padding:12px 20px; border-radius:12px;';
+      waitEl.style.cssText = 'position:absolute; top:20px; left:50%; transform:translateX(-50%); color:white; font-size:16px; text-align:center; z-index:25; pointer-events:auto; background:rgba(0,0,0,0.7); padding:10px 16px; border-radius:12px;';
       document.getElementById('ui').appendChild(waitEl);
     }
-    waitEl.innerHTML = '💥 Tu as perdu ! Mode spectateur actif.<br>' + 
-      (isHost ? '<button onclick="showRestartOptions()" style="margin-top:8px; padding:8px 16px; background:#f4d03f; border:none; border-radius:8px; font-weight:700; cursor:pointer; pointer-events:auto;">Relancer une partie</button>' : '');
+    waitEl.innerHTML = '💥 Game Over ! Mode spectateur (Suivi du Leader).<br>' + 
+      (isHost ? '<button onclick="showRestartOptions()" style="margin-top:6px; padding:6px 12px; background:#f4d03f; border:none; border-radius:6px; font-weight:700; cursor:pointer; pointer-events:auto;">Relancer</button>' : '');
     return;
   }
 
@@ -463,96 +469,85 @@ function gameOver() {
   gameOverDiv.style.display = 'block';
 }
 
-function drawBird() {
-  if (!bird) return;
+function drawBird(bX, bY, bRot, bWing, bColor, isMe = false, bScore = 0, pName = '') {
   ctx.save();
-  ctx.translate(bird.x, bird.y);
-  ctx.rotate(bird.rotation);
+  ctx.translate(bX, bY);
+  ctx.rotate(bRot || 0);
 
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.beginPath();
-  ctx.ellipse(5, 8, bird.radius * 0.9, bird.radius * 0.45, 0, 0, Math.PI * 2);
+  ctx.ellipse(5, 8, birdRadius * 0.9, birdRadius * 0.45, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  const bodyGrad = ctx.createRadialGradient(-bird.radius*0.4, -bird.radius*0.4, 2, 0, 0, bird.radius);
+  const bodyGrad = ctx.createRadialGradient(-birdRadius*0.4, -birdRadius*0.4, 2, 0, 0, birdRadius);
   bodyGrad.addColorStop(0, '#fff3a0');
-  bodyGrad.addColorStop(0.4, '#f4d03f');
+  bodyGrad.addColorStop(0.4, bColor || '#f4d03f');
   bodyGrad.addColorStop(1, '#d4a017');
   ctx.fillStyle = bodyGrad;
   ctx.beginPath();
-  ctx.ellipse(0, 0, bird.radius, bird.radius * 0.82, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, birdRadius, birdRadius * 0.82, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.beginPath();
-  ctx.ellipse(-bird.radius*0.25, -bird.radius*0.35, bird.radius*0.5, bird.radius*0.3, -0.4, 0, Math.PI * 2);
+  ctx.ellipse(-birdRadius*0.25, -birdRadius*0.35, birdRadius*0.5, birdRadius*0.3, -0.4, 0, Math.PI * 2);
   ctx.fill();
 
+  // Aile
   ctx.save();
-  ctx.rotate(Math.sin(bird.wingAngle) * 0.45);
-  const wingGrad = ctx.createLinearGradient(-10, 0, 5, 8);
-  wingGrad.addColorStop(0, '#ff8a65');
-  wingGrad.addColorStop(1, '#e17055');
-  ctx.fillStyle = wingGrad;
+  ctx.rotate(Math.sin(bWing || 0) * 0.45);
+  ctx.fillStyle = '#e17055';
   ctx.beginPath();
-  ctx.ellipse(-7, 5, bird.radius * 0.5, bird.radius * 0.3, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.beginPath();
-  ctx.ellipse(-8, 2, bird.radius * 0.3, bird.radius * 0.12, -0.3, 0, Math.PI * 2);
+  ctx.ellipse(-7, 5, birdRadius * 0.5, birdRadius * 0.3, -0.3, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
+  // Œil
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.arc(bird.radius * 0.28, -bird.radius * 0.18, bird.radius * 0.34, 0, Math.PI * 2);
+  ctx.arc(birdRadius * 0.28, -birdRadius * 0.18, birdRadius * 0.34, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
   ctx.fillStyle = '#2d3436';
   ctx.beginPath();
-  ctx.arc(bird.radius * 0.4, -bird.radius * 0.16, bird.radius * 0.17, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(bird.radius * 0.46, -bird.radius * 0.22, bird.radius * 0.07, 0, Math.PI * 2);
+  ctx.arc(birdRadius * 0.4, -birdRadius * 0.16, birdRadius * 0.17, 0, Math.PI * 2);
   ctx.fill();
 
-  const beakGrad = ctx.createLinearGradient(bird.radius*0.6, 0, bird.radius*1.3, 0);
-  beakGrad.addColorStop(0, '#ff9f43');
-  beakGrad.addColorStop(1, '#e17055');
-  ctx.fillStyle = beakGrad;
+  // Bec
+  ctx.fillStyle = '#ff9f43';
   ctx.beginPath();
-  ctx.moveTo(bird.radius * 0.65, -3);
-  ctx.lineTo(bird.radius * 1.3, -9);
-  ctx.lineTo(bird.radius * 1.3, 7);
+  ctx.moveTo(birdRadius * 0.65, -3);
+  ctx.lineTo(birdRadius * 1.3, -9);
+  ctx.lineTo(birdRadius * 1.3, 7);
   ctx.closePath();
   ctx.fill();
 
   ctx.restore();
+
+  // Nom ou indicateur du leader
+  if (pName) {
+    ctx.save();
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 11px Nunito';
+    ctx.textAlign = 'center';
+    ctx.fillText(pName, bX, bY - birdRadius - 12);
+    ctx.restore();
+  }
 }
 
 function drawPipes() {
   pipes.forEach(p => {
     const bodyGrad = ctx.createLinearGradient(p.x, 0, p.x + pipeWidth, 0);
     bodyGrad.addColorStop(0, '#007a5a');
-    bodyGrad.addColorStop(0.2, '#00a884');
     bodyGrad.addColorStop(0.5, '#00d4b8');
-    bodyGrad.addColorStop(0.8, '#00b894');
     bodyGrad.addColorStop(1, '#006b4f');
 
     ctx.fillStyle = bodyGrad;
     ctx.fillRect(p.x, 0, pipeWidth, p.top);
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(p.x + 2, 0, 8, p.top);
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(p.x + pipeWidth - 8, 0, 8, p.top);
 
     const capGrad = ctx.createLinearGradient(0, p.top - 36, 0, p.top);
     capGrad.addColorStop(0, '#00f0d0');
-    capGrad.addColorStop(0.4, '#00cec9');
     capGrad.addColorStop(1, '#007a5a');
     ctx.fillStyle = capGrad;
     ctx.fillRect(p.x - 12, p.top - 36, pipeWidth + 24, 36);
@@ -561,8 +556,6 @@ function drawPipes() {
     ctx.fillRect(p.x, p.bottom, pipeWidth, height - p.bottom);
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillRect(p.x + 2, p.bottom, 8, height - p.bottom);
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(p.x + pipeWidth - 8, p.bottom, 8, height - p.bottom);
 
     ctx.fillStyle = capGrad;
     ctx.fillRect(p.x - 12, p.bottom, pipeWidth + 24, 36);
@@ -575,7 +568,6 @@ function drawGround() {
   groundGrad.addColorStop(1, '#fdcb6e');
   ctx.fillStyle = groundGrad;
   ctx.fillRect(0, height - 35, width, 35);
-  
   ctx.fillStyle = '#00b894';
   ctx.fillRect(0, height - 38, width, 6);
 }
@@ -619,7 +611,71 @@ function draw() {
     drawPipes();
     drawGround();
     drawParticles();
-    if (bird && gameState === 'play') drawBird();
+    
+    // Si on joue, on dessine notre propre oiseau
+    if (bird && gameState === 'play') {
+      drawBird(bird.x, bird.y, bird.rotation, bird.wingAngle, '#f4d03f', true, score, 'Moi');
+    }
+
+    // Gestion du Multijoueur & Mode Spectateur ciblé sur le Leader
+    if (multiMode) {
+      let activePlayers = [];
+      
+      // Ajouter l'état local si vivant
+      if (bird && gameState === 'play') {
+        activePlayers.push({
+          id: peer ? peer.id : 'local',
+          y: bird.y,
+          score: score,
+          alive: true,
+          rotation: bird.rotation,
+          wingAngle: bird.wingAngle,
+          color: '#f4d03f',
+          name: 'Moi'
+        });
+      }
+
+      // Collecter les autres joueurs
+      Object.entries(otherBirds).forEach(([id, ob], idx) => {
+        if (ob.alive !== false && ob.y) {
+          activePlayers.push({
+            id: id,
+            y: ob.y,
+            score: ob.score || 0,
+            alive: true,
+            rotation: ob.rotation || 0,
+            wingAngle: ob.wingAngle || 0,
+            color: birdColors[(idx + 1) % birdColors.length],
+            name: id.substring(0, 6)
+          });
+        }
+      });
+
+      // Trouver le leader (score le plus élevé parmi les vivants)
+      let leader = null;
+      if (activePlayers.length > 0) {
+        activePlayers.sort((a, b) => b.score - a.score);
+        leader = activePlayers[0];
+      }
+
+      // Si le joueur est mort (en attente/spectateur), afficher un indicateur visuel de qui il spectate
+      if (gameState === 'waiting' && leader) {
+        ctx.save();
+        ctx.fillStyle = '#f4d03f';
+        ctx.font = 'bold 13px Nunito';
+        ctx.textAlign = 'center';
+        ctx.fillText('👁️ Mode Spectateur : Suivi du Leader (' + leader.name + ')', width / 2, 75);
+        ctx.restore();
+      }
+
+      // Dessiner tous les oiseaux vivants des autres joueurs
+      Object.entries(otherBirds).forEach(([id, ob], idx) => {
+        if (ob.alive === false || !ob.y) return;
+        let isLeader = leader && leader.id === id;
+        let label = (isLeader ? '👑 ' : '') + id.substring(0, 6);
+        drawBird(width * 0.22, ob.y, ob.rotation, ob.wingAngle, birdColors[(idx + 1) % birdColors.length], false, ob.score, label);
+      });
+    }
   }
 }
 
@@ -638,10 +694,8 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
-canvas.addEventListener('pointerdown', (e) => {
-  if (gameState === 'play') {
-    flap();
-  }
+canvas.addEventListener('pointerdown', () => {
+  if (gameState === 'play') flap();
 });
 
 document.addEventListener('keydown', (e) => {
@@ -653,18 +707,19 @@ document.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', resize);
 
-// ===== MULTIJOUEUR =====
+// ===== MULTIJOUEUR (Jusqu'à 8 joueurs + Liste + Leader cam) =====
 let peer = null;
 let connections = [];
 let isHost = false;
 let roomCode = '';
 let otherBirds = {};
 let multiMode = false;
-const birdColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+const birdColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e84393', '#00cec9'];
 
 function showMultiMenu() {
   document.getElementById('menu').style.display = 'none';
   document.getElementById('multiMenu').style.display = 'block';
+  updatePlayersListUI();
 }
 
 function backToMainMenu() {
@@ -685,17 +740,23 @@ function hostGame() {
 
   peer = new Peer('flappy-' + roomCode);
 
-  peer.on('open', (id) => {
+  peer.on('open', () => {
     document.getElementById('roomCodeDisplay').textContent = 'Code : ' + roomCode;
     document.getElementById('roomCodeDisplay').style.display = 'block';
-    document.getElementById('playersList').textContent = 'En attente...';
-    updatePlayersList();
+    updatePlayersListUI();
   });
 
   peer.on('connection', (conn) => {
+    if (connections.length >= 7) {
+      conn.on('open', () => conn.send({ type: 'error', msg: 'Salon complet (Max 8)' }));
+      setTimeout(() => conn.close(), 500);
+      return;
+    }
+
     connections.push(conn);
     conn.on('open', () => {
-      updatePlayersList();
+      updatePlayersListUI();
+      broadcastRoomList();
     });
     conn.on('data', (data) => {
       if (data.type === 'bird') {
@@ -708,19 +769,18 @@ function hostGame() {
     conn.on('close', () => {
       connections = connections.filter(c => c !== conn);
       delete otherBirds[conn.peer];
-      updatePlayersList();
+      updatePlayersListUI();
+      broadcastRoomList();
     });
   });
 
-  peer.on('error', (err) => {
-    alert('Erreur hôte : ' + err.type);
-  });
+  peer.on('error', (err) => alert('Erreur hôte : ' + err.type));
 }
 
 function joinGame() {
   const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
   if (!code) {
-    alert('Entre un code');
+    alert('Entre un code de partie');
     return;
   }
   isHost = false;
@@ -733,8 +793,7 @@ function joinGame() {
     connections = [conn];
 
     conn.on('open', () => {
-      document.getElementById('playersList').textContent = 'Connecté ! En attente du lancement...';
-      document.getElementById('playersList').style.color = '#2ecc71';
+      document.getElementById('playersListNames').innerHTML = '<li>Connecté au salon ! En attente...</li>';
     });
 
     conn.on('data', (data) => {
@@ -745,6 +804,9 @@ function joinGame() {
         menu.style.display = 'none';
         startCountdown(data.seconds, data.diff);
       }
+      if (data.type === 'roomList') {
+        updateClientPlayersList(data.players);
+      }
       if (data.type === 'spawnPipe') {
         spawnPipe(data.top);
       }
@@ -754,22 +816,47 @@ function joinGame() {
       if (data.type === 'playerDied') {
         if (otherBirds[data.from]) otherBirds[data.from].alive = false;
       }
+      if (data.type === 'error') {
+        alert(data.msg);
+        backToMainMenu();
+      }
     });
 
-    conn.on('error', (err) => alert('Erreur de connexion : ' + err));
-  });
-
-  peer.on('error', (err) => {
-    alert('Erreur PeerJS : ' + err.type + '. Vérifie le code et la connexion.');
+    conn.on('error', () => alert('Impossible de rejoindre la partie. Vérifie le code.'));
   });
 }
 
-function updatePlayersList() {
-  const count = connections.length + 1;
-  const listEl = document.getElementById('playersList');
+function updatePlayersListUI() {
+  const listEl = document.getElementById('playersNamesList');
   const startEl = document.getElementById('startButtons');
-  if (listEl) listEl.textContent = count + ' joueur(s)';
-  if (isHost && startEl) startEl.style.display = 'block';
+  if (!listEl) return;
+
+  let html = '<li>👑 Hôte (Moi)</li>';
+  connections.forEach((conn) => {
+    html += '<li>👤 ' + conn.peer.substring(0, 6) + '</li>';
+  });
+  listEl.innerHTML = html;
+
+  const totalCount = connections.length + 1;
+  if (isHost && startEl) {
+    startEl.style.display = totalCount >= 1 ? 'block' : 'none';
+  }
+}
+
+function updateClientPlayersList(players) {
+  const listEl = document.getElementById('playersNamesList');
+  if (!listEl) return;
+  let html = '';
+  players.forEach((p, i) => {
+    html += '<li>' + (i === 0 ? '👑 ' : '👤 ') + p.substring(0, 6) + '</li>';
+  });
+  listEl.innerHTML = html;
+}
+
+function broadcastRoomList() {
+  if (!isHost) return;
+  const players = [peer.id, ...connections.map(c => c.peer)];
+  broadcast({ type: 'roomList', players: players });
 }
 
 let countdown = 0;
@@ -794,23 +881,23 @@ function startMultiGame(diff) {
 function startCountdown(seconds, diff) {
   countdown = seconds;
   gameState = 'countdown';
-  const cdEl = document.getElementById('countdownDisplay');
+  let cdEl = document.getElementById('countdownDisplay');
   if (!cdEl) {
     const div = document.createElement('div');
     div.id = 'countdownDisplay';
     div.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:80px; font-weight:800; color:#f4d03f; text-shadow:0 4px 20px rgba(0,0,0,0.5); z-index:30; pointer-events:none;';
     document.getElementById('ui').appendChild(div);
+    cdEl = div;
   }
-  const display = document.getElementById('countdownDisplay');
-  display.style.display = 'block';
+  cdEl.style.display = 'block';
 
   if (countdownInterval) clearInterval(countdownInterval);
   countdownInterval = setInterval(() => {
     countdown--;
     if (countdown > 0) {
-      display.textContent = countdown;
+      cdEl.textContent = countdown;
     } else {
-      display.style.display = 'none';
+      cdEl.style.display = 'none';
       clearInterval(countdownInterval);
       initGame(diff);
       if (isHost) {
@@ -818,17 +905,13 @@ function startCountdown(seconds, diff) {
       }
     }
   }, 1000);
-  display.textContent = countdown;
+  cdEl.textContent = countdown;
 }
 
 function broadcast(data) {
   connections.forEach(conn => {
     if (conn && conn.open) {
-      try {
-        conn.send(data);
-      } catch (e) {
-        console.warn('Send failed', e);
-      }
+      try { conn.send(data); } catch (e) { console.warn(e); }
     }
   });
 }
@@ -842,31 +925,11 @@ update = function(delta) {
       y: bird ? bird.y : -100,
       score: score,
       alive: bird !== null,
+      rotation: bird ? bird.rotation : 0,
+      wingAngle: bird ? bird.wingAngle : 0,
       from: peer ? peer.id : 'local'
     };
     broadcast(myData);
-  }
-};
-
-const originalDraw = draw;
-draw = function() {
-  originalDraw();
-  if (multiMode && (gameState === 'play' || gameState === 'waiting')) {
-    // Dessiner tous les autres joueurs (vivants ou en cours de visionnage)
-    Object.values(otherBirds).forEach((ob, idx) => {
-      if (!ob.y || ob.alive === false) return;
-      ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = birdColors[idx % birdColors.length];
-      ctx.beginPath();
-      ctx.arc(width * 0.22, ob.y, birdRadius * 0.75, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'white';
-      ctx.font = '12px Nunito';
-      ctx.textAlign = 'center';
-      ctx.fillText(ob.score || 0, width * 0.22, ob.y - birdRadius - 8);
-      ctx.restore();
-    });
   }
 };
 
