@@ -293,6 +293,10 @@ function initGame(diff = 'normal') {
     menu.style.display = 'none';
     document.getElementById('multiMenu').style.display = 'none';
     gameOverDiv.style.display = 'none';
+    
+    const waitMsg = document.getElementById('waitingMsg');
+    if (waitMsg) waitMsg.remove();
+
     updateScore();
     
     clouds = [];
@@ -345,14 +349,14 @@ function goToMenu() {
   scoreDisplay.style.display = 'none';
   gameOverDiv.style.display = 'none';
   menu.style.display = 'block';
+  const waitMsg = document.getElementById('waitingMsg');
+  if (waitMsg) waitMsg.remove();
   updateMenuScores();
 }
 
 function spawnPipe(topHeight = null) {
   const minTop = height * 0.12;
   const maxTop = height - pipeGap - height * 0.18;
-  
-  // Si l'hôte fournit la hauteur, on l'utilise (synchro multi), sinon génération aléatoire (solo ou hôte)
   const tHeight = topHeight !== null ? topHeight : (minTop + Math.random() * Math.max(50, maxTop - minTop));
   
   pipes.push({
@@ -362,7 +366,6 @@ function spawnPipe(topHeight = null) {
     passed: false
   });
 
-  // Si on est l'hôte en multijoueur, on diffuse ce tuyau à tout le monde
   if (multiMode && isHost && topHeight === null) {
     broadcast({
       type: 'spawnPipe',
@@ -372,6 +375,7 @@ function spawnPipe(topHeight = null) {
 }
 
 function checkCollision() {
+  if (!bird) return false;
   if (bird.y + bird.radius > height - 35 || bird.y - bird.radius < 0) return true;
   for (let p of pipes) {
     if (bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + pipeWidth) {
@@ -382,17 +386,20 @@ function checkCollision() {
 }
 
 function update(delta = 1) {
-  if (gameState !== 'play') return;
+  // En mode multijoueur, même si le joueur a perdu (gameState === 'waiting' ou 'spectate'),
+  // le monde (tuyaux, décors) continue de défiler pour qu'il puisse voir les autres joueurs.
+  if (gameState !== 'play' && !(multiMode && (gameState === 'waiting' || gameState === 'spectate'))) return;
 
-  bird.vy += gravity * delta;
-  bird.y += bird.vy * delta;
-  bird.rotation = Math.min(0.8, Math.max(-0.5, bird.vy * 0.08));
-  bird.wingAngle += 0.3 * delta;
+  if (bird && gameState === 'play') {
+    bird.vy += gravity * delta;
+    bird.y += bird.vy * delta;
+    bird.rotation = Math.min(0.8, Math.max(-0.5, bird.vy * 0.08));
+    bird.wingAngle += 0.3 * delta;
+  }
 
   frameCount += delta;
   const spawnRate = Math.floor(90 / difficulties[currentDifficulty].speedMult);
   
-  // Seul l'hôte (ou le joueur solo) génère les nouveaux tuyaux
   if (frameCount >= spawnRate) {
     if (!multiMode || isHost) {
       spawnPipe();
@@ -402,7 +409,7 @@ function update(delta = 1) {
 
   for (let p of pipes) {
     p.x -= pipeSpeed * delta;
-    if (!p.passed && p.x + pipeWidth < bird.x) {
+    if (bird && !p.passed && p.x + pipeWidth < bird.x && gameState === 'play') {
       p.passed = true;
       score++;
       updateScore();
@@ -422,20 +429,26 @@ function update(delta = 1) {
     if (c.x < -c.size * 2) c.x = width + c.size;
   });
 
-  if (checkCollision()) gameOver();
+  if (gameState === 'play' && checkCollision()) {
+    gameOver();
+  }
 }
 
 function gameOver() {
   if (multiMode) {
     gameState = 'waiting';
-    bird = null;
+    bird = null; // L'oiseau disparaît du jeu physique local
     broadcast({ type: 'playerDied', from: peer ? peer.id : 'local', alive: false });
-    const waitEl = document.getElementById('waitingMsg') || document.createElement('div');
-    waitEl.id = 'waitingMsg';
-    waitEl.style.cssText = 'position:absolute; top:40%; left:50%; transform:translate(-50%,-50%); color:white; font-size:22px; text-align:center; z-index:25; pointer-events:auto; background:rgba(0,0,0,0.6); padding:20px; border-radius:16px;';
-    waitEl.innerHTML = 'Tu as perdu !<br>En attente des autres joueurs...<br><br>' + 
-      (isHost ? '<button onclick="showRestartOptions()" style="padding:12px 24px; background:#f4d03f; border:none; border-radius:10px; font-weight:700; cursor:pointer; pointer-events:auto;">Relancer une partie</button>' : '');
-    document.getElementById('ui').appendChild(waitEl);
+    
+    let waitEl = document.getElementById('waitingMsg');
+    if (!waitEl) {
+      waitEl = document.createElement('div');
+      waitEl.id = 'waitingMsg';
+      waitEl.style.cssText = 'position:absolute; top:20px; left:50%; transform:translateX(-50%); color:white; font-size:18px; text-align:center; z-index:25; pointer-events:auto; background:rgba(0,0,0,0.7); padding:12px 20px; border-radius:12px;';
+      document.getElementById('ui').appendChild(waitEl);
+    }
+    waitEl.innerHTML = '💥 Tu as perdu ! Mode spectateur actif.<br>' + 
+      (isHost ? '<button onclick="showRestartOptions()" style="margin-top:8px; padding:8px 16px; background:#f4d03f; border:none; border-radius:8px; font-weight:700; cursor:pointer; pointer-events:auto;">Relancer une partie</button>' : '');
     return;
   }
 
@@ -451,6 +464,7 @@ function gameOver() {
 }
 
 function drawBird() {
+  if (!bird) return;
   ctx.save();
   ctx.translate(bird.x, bird.y);
   ctx.rotate(bird.rotation);
@@ -656,6 +670,8 @@ function showMultiMenu() {
 function backToMainMenu() {
   document.getElementById('multiMenu').style.display = 'none';
   document.getElementById('menu').style.display = 'block';
+  const waitMsg = document.getElementById('waitingMsg');
+  if (waitMsg) waitMsg.remove();
   if (peer) peer.destroy();
   peer = null;
   connections = [];
@@ -730,7 +746,6 @@ function joinGame() {
         startCountdown(data.seconds, data.diff);
       }
       if (data.type === 'spawnPipe') {
-        // Le client reçoit le tuyau généré par l'hôte et l'ajoute au même endroit
         spawnPipe(data.top);
       }
       if (data.type === 'bird') {
@@ -821,12 +836,12 @@ function broadcast(data) {
 const originalUpdate = update;
 update = function(delta) {
   originalUpdate(delta);
-  if (multiMode && gameState === 'play' && bird) {
+  if (multiMode && gameState === 'play') {
     const myData = {
       type: 'bird',
-      y: bird.y,
+      y: bird ? bird.y : -100,
       score: score,
-      alive: true,
+      alive: bird !== null,
       from: peer ? peer.id : 'local'
     };
     broadcast(myData);
@@ -837,6 +852,7 @@ const originalDraw = draw;
 draw = function() {
   originalDraw();
   if (multiMode && (gameState === 'play' || gameState === 'waiting')) {
+    // Dessiner tous les autres joueurs (vivants ou en cours de visionnage)
     Object.values(otherBirds).forEach((ob, idx) => {
       if (!ob.y || ob.alive === false) return;
       ctx.save();
