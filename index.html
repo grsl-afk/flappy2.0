@@ -284,7 +284,7 @@ function initGame(diff = 'normal') {
     particles = [];
     gameState = 'play';
     
-    gravity = height * 0.00032 * d.gravityMult;
+    gravity = height * 0.00022 * d.gravityMult;
     pipeSpeed = width * 0.0022 * d.speedMult;
     pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
     
@@ -317,7 +317,7 @@ let lastFlap = 0;
 function flap() {
   if (gameState !== 'play') return;
   const now = performance.now();
-  if (now - lastFlap < 80) return; // Prevent spam
+  if (now - lastFlap < 50) return; // Prevent spam
   lastFlap = now;
   bird.vy = flapPower;
   // Particles
@@ -416,7 +416,7 @@ function gameOver() {
     gameState = 'waiting';
     bird = null;
     // Notify others
-    broadcast({ type: 'playerDied', from: peer ? peer.id : 'local' });
+    broadcast({ type: 'playerDied', from: peer ? peer.id : 'local', alive: false });
     // Show waiting message
     const waitEl = document.getElementById('waitingMsg') || document.createElement('div');
     waitEl.id = 'waitingMsg';
@@ -634,16 +634,15 @@ function drawParticles() {
 }
 
 function draw() {
-  // Always clear and draw background
   ctx.fillStyle = '#1a1a2e';
   ctx.fillRect(0, 0, width, height);
   
-  if (gameState === 'play' || gameState === 'over') {
+  if (gameState === 'play' || gameState === 'over' || gameState === 'waiting') {
     drawBackground();
     drawPipes();
     drawGround();
     drawParticles();
-    if (bird) drawBird();
+    if (bird && gameState === 'play') drawBird();
   }
 }
 
@@ -780,8 +779,17 @@ function hostGame() {
     conn.on('open', () => {
       updatePlayersList();
     });
+    conn.on('data', (data) => {
+      if (data.type === 'bird') {
+        otherBirds[conn.peer] = data;
+      }
+      if (data.type === 'playerDied') {
+        if (otherBirds[conn.peer]) otherBirds[conn.peer].alive = false;
+      }
+    });
     conn.on('close', () => {
       connections = connections.filter(c => c !== conn);
+      delete otherBirds[conn.peer];
       updatePlayersList();
     });
   });
@@ -820,6 +828,12 @@ function joinGame() {
         document.getElementById('multiMenu').style.display = 'none';
         menu.style.display = 'none';
         startCountdown(data.seconds, data.diff);
+      }
+      if (data.type === 'bird') {
+        otherBirds[data.from] = data;
+      }
+      if (data.type === 'playerDied') {
+        if (otherBirds[data.from]) otherBirds[data.from].alive = false;
       }
     });
 
@@ -899,7 +913,6 @@ const originalUpdate = update;
 update = function() {
   originalUpdate();
   if (multiMode && gameState === 'play') {
-    // Send own bird state
     const myData = {
       type: 'bird',
       y: bird.y,
@@ -908,26 +921,27 @@ update = function() {
       from: peer ? peer.id : 'local'
     };
     broadcast(myData);
-    if (isHost && Math.floor(frameCount) % 30 === 0) {
-      // Host syncs pipes periodically
-      broadcast({ type: 'pipes', pipes: pipes.map(p => ({x: p.x, top: p.top, bottom: p.bottom})) });
-    }
   }
 };
 
 const originalDraw = draw;
 draw = function() {
   originalDraw();
-  if (multiMode && gameState === 'play') {
-    // Draw other birds
+  if (multiMode && (gameState === 'play' || gameState === 'waiting')) {
+    // Draw other birds even when waiting
     Object.values(otherBirds).forEach((ob, idx) => {
-      if (!ob.y) return;
+      if (!ob.y || ob.alive === false) return;
       ctx.save();
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = 0.85;
       ctx.fillStyle = birdColors[idx % birdColors.length];
       ctx.beginPath();
-      ctx.arc(width * 0.22, ob.y, birdRadius * 0.7, 0, Math.PI * 2);
+      ctx.arc(width * 0.22, ob.y, birdRadius * 0.75, 0, Math.PI * 2);
       ctx.fill();
+      // Small score above
+      ctx.fillStyle = 'white';
+      ctx.font = '12px Nunito';
+      ctx.textAlign = 'center';
+      ctx.fillText(ob.score || 0, width * 0.22, ob.y - birdRadius - 8);
       ctx.restore();
     });
   }
