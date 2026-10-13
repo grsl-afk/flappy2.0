@@ -229,7 +229,7 @@ let gravity, flapPower, pipeSpeed, pipeGap, pipeWidth, birdRadius;
 let currentDifficulty = 'normal';
 let particles = [];
 let clouds = [];
-let lastTopHeight = null; // Permet de lisser la hauteur entre 2 tuyaux consécutifs
+let lastTopHeight = null;
 
 let myPseudo = localStorage.getItem('flappyPseudo') || 'Joueur';
 document.addEventListener("DOMContentLoaded", () => {
@@ -260,9 +260,9 @@ function updateMenuScores() {
 }
 
 const difficulties = {
-  easy: { speedMult: 0.6, gapMult: 1.45, gravityMult: 0.8, name: 'Facile' },
-  normal: { speedMult: 0.85, gapMult: 1.2, gravityMult: 1.0, name: 'Normal' },
-  hard: { speedMult: 1.15, gapMult: 1.0, gravityMult: 1.2, name: 'Difficile' }
+  easy: { speedMult: 0.6, gapMult: 1.6, gravityMult: 0.8, name: 'Facile' },
+  normal: { speedMult: 0.85, gapMult: 1.35, gravityMult: 1.0, name: 'Normal' },
+  hard: { speedMult: 1.15, gapMult: 1.15, gravityMult: 1.2, name: 'Difficile' }
 };
 
 function resize() {
@@ -274,7 +274,7 @@ function resize() {
   
   birdRadius = Math.min(width, height) * 0.028;
   pipeWidth = Math.min(width, height) * 0.09;
-  pipeGap = Math.min(width, height) * 0.28;
+  pipeGap = Math.min(width, height) * 0.31;
   
   gravity = height * 0.00045;
   flapPower = -height * 0.0072;
@@ -310,7 +310,7 @@ function initGame(diff = 'normal') {
     gravity = height * 0.00045 * d.gravityMult;
     flapPower = -height * 0.0072;
     pipeSpeed = width * 0.0045 * d.speedMult;
-    pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
+    pipeGap = Math.min(width, height) * 0.31 * d.gapMult;
     
     scoreDisplay.style.display = 'block';
     menu.style.display = 'none';
@@ -382,18 +382,18 @@ function goToMenu() {
 }
 
 function spawnPipe(topHeight = null) {
-  const minTop = height * 0.12;
-  const maxTop = height - pipeGap - height * 0.18;
+  const minTop = height * 0.10;
+  const maxTop = height - pipeGap - height * 0.15;
   
   let tHeight;
   if (topHeight !== null) {
     tHeight = topHeight;
   } else {
-    // Si aucun tuyau précédent, on initialise aléatoirement, sinon on lisse l'écart de hauteur pour rester accessible (max +/- 110px de variation)
+    // Amplitude augmentée pour plus de relief, mais encadrée pour rester franchissable (max +/- 150px d'écart entre deux portes)
     if (lastTopHeight === null) {
       tHeight = minTop + Math.random() * Math.max(50, maxTop - minTop);
     } else {
-      const maxVariation = height * 0.14; 
+      const maxVariation = height * 0.20; 
       let delta = (Math.random() - 0.5) * (maxVariation * 2);
       tHeight = Math.max(minTop, Math.min(maxTop, lastTopHeight + delta));
     }
