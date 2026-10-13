@@ -248,9 +248,9 @@ function resize() {
   birdRadius = Math.min(width, height) * 0.028;
   pipeWidth = Math.min(width, height) * 0.09;
   pipeGap = Math.min(width, height) * 0.28;
-  gravity = height * 0.0009;
-  flapPower = -height * 0.012;
-  pipeSpeed = width * 0.0045;
+  gravity = height * 0.0008;
+  flapPower = -height * 0.0115;
+  pipeSpeed = width * 0.0042;
   
   if (bird) {
     bird.radius = birdRadius;
@@ -279,8 +279,8 @@ function initGame(diff = 'normal') {
     gameState = 'play';
     
     // Apply difficulty
-    gravity = height * 0.0009 * d.gravityMult;
-    pipeSpeed = width * 0.0045 * d.speedMult;
+    gravity = height * 0.0008 * d.gravityMult;
+    pipeSpeed = width * 0.0042 * d.speedMult;
     pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
     
     scoreDisplay.style.display = 'block';
@@ -308,8 +308,12 @@ function updateScore() {
   scoreDisplay.textContent = score;
 }
 
+let lastFlap = 0;
 function flap() {
   if (gameState !== 'play') return;
+  const now = performance.now();
+  if (now - lastFlap < 80) return; // Prevent spam
+  lastFlap = now;
   bird.vy = flapPower;
   // Particles
   for (let i = 0; i < 6; i++) {
@@ -370,10 +374,10 @@ function update(delta = 1) {
   bird.wingAngle += 0.3 * delta;
 
   frameCount += delta;
-  const spawnRate = Math.floor(100 / difficulties[currentDifficulty].speedMult);
+  const spawnRate = Math.floor(90 / difficulties[currentDifficulty].speedMult);
   if (frameCount >= spawnRate) {
     spawnPipe();
-    frameCount = 0;
+    frameCount -= spawnRate;
   }
 
   for (let p of pipes) {
@@ -386,7 +390,6 @@ function update(delta = 1) {
   }
   pipes = pipes.filter(p => p.x > -pipeWidth - 30);
 
-  // Particles
   particles.forEach(p => {
     p.x += p.vx * delta;
     p.y += p.vy * delta;
@@ -394,7 +397,6 @@ function update(delta = 1) {
   });
   particles = particles.filter(p => p.life > 0);
 
-  // Clouds
   clouds.forEach(c => {
     c.x -= c.speed * delta;
     if (c.x < -c.size * 2) c.x = width + c.size;
@@ -625,15 +627,24 @@ function draw() {
 }
 
 let lastTime = 0;
-const TARGET_FPS = 60;
+let accumulator = 0;
+const FIXED_STEP = 1000 / 60; // 60 updates per second
 
 function loop(timestamp) {
   if (!lastTime) lastTime = timestamp;
-  const delta = Math.min((timestamp - lastTime) / (1000 / TARGET_FPS), 3); // Cap delta
+  let frameTime = timestamp - lastTime;
   lastTime = timestamp;
 
+  // Cap frame time to avoid spiral of death
+  if (frameTime > 250) frameTime = 250;
+
+  accumulator += frameTime;
+
   try {
-    update(delta);
+    while (accumulator >= FIXED_STEP) {
+      update(1); // Always update with delta = 1 (60fps equivalent)
+      accumulator -= FIXED_STEP;
+    }
     draw();
   } catch (err) {
     console.error('Erreur loop:', err);
