@@ -13,7 +13,7 @@
     height: 100%;
     overflow: hidden;
     background: #0f0f1a;
-    touch-action: none;
+    touch-action: manipulation;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
@@ -171,9 +171,9 @@
   <div id="menu">
     <h1>Flappy Bird</h1>
     <p>Choisis un niveau ou multijoueur</p>
-    <button class="diff-btn" id="easy">🟢 Facile</button>
-    <button class="diff-btn" id="normal">🔵 Normal</button>
-    <button class="diff-btn" id="hard">🔴 Difficile</button>
+    <button class="diff-btn" id="easy" onclick="initGame('easy')">🟢 Facile</button>
+    <button class="diff-btn" id="normal" onclick="initGame('normal')">🔵 Normal</button>
+    <button class="diff-btn" id="hard" onclick="initGame('hard')">🔴 Difficile</button>
     <button class="diff-btn" id="multiBtn" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7);">👥 Multijoueur</button>
   </div>
   <div id="multiMenu" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.9); padding:30px; border-radius:20px; text-align:center; pointer-events:auto; z-index:25;">
@@ -197,8 +197,8 @@
       Score : <span id="finalScore">0</span><br>
       Meilleur : <span id="bestScoreDisplay">0</span>
     </div>
-    <button id="restartBtn" style="margin: 8px;">🔄 Rejouer</button>
-    <button id="menuBtn" style="margin: 8px; background: linear-gradient(135deg, #636e72, #2d3436);">🏠 Menu</button>
+    <button id="restartBtn" onclick="restart()" style="margin: 8px;">🔄 Rejouer</button>
+    <button id="menuBtn" onclick="goToMenu()" style="margin: 8px; background: linear-gradient(135deg, #636e72, #2d3436);">🏠 Menu</button>
   </div>
 </div>
 </div>
@@ -238,9 +238,9 @@ function updateMenuScores() {
 }
 
 const difficulties = {
-  easy: { speedMult: 0.6, gapMult: 1.45, gravityMult: 0.75, name: 'Facile' },
-  normal: { speedMult: 0.85, gapMult: 1.2, gravityMult: 0.9, name: 'Normal' },
-  hard: { speedMult: 1.15, gapMult: 1.0, gravityMult: 1.05, name: 'Difficile' }
+  easy: { speedMult: 0.6, gapMult: 1.45, gravityMult: 0.8, name: 'Facile' },
+  normal: { speedMult: 0.85, gapMult: 1.2, gravityMult: 1.0, name: 'Normal' },
+  hard: { speedMult: 1.15, gapMult: 1.0, gravityMult: 1.2, name: 'Difficile' }
 };
 
 function resize() {
@@ -253,8 +253,10 @@ function resize() {
   birdRadius = Math.min(width, height) * 0.028;
   pipeWidth = Math.min(width, height) * 0.09;
   pipeGap = Math.min(width, height) * 0.28;
-  gravity = height * 0.00028;
-  flapPower = -height * 0.0115;
+  
+  // Physique ajustée pour des sauts plus fluides et contrôlés
+  gravity = height * 0.00045;
+  flapPower = -height * 0.0072;
   pipeSpeed = width * 0.0045;
   
   if (bird) {
@@ -283,7 +285,8 @@ function initGame(diff = 'normal') {
     particles = [];
     gameState = 'play';
     
-    gravity = height * 0.00018 * d.gravityMult;
+    gravity = height * 0.00045 * d.gravityMult;
+    flapPower = -height * 0.0072;
     pipeSpeed = width * 0.0045 * d.speedMult;
     pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
     
@@ -304,7 +307,6 @@ function initGame(diff = 'normal') {
     }
   } catch (err) {
     console.error('Erreur initGame:', err);
-    alert('Erreur au lancement : ' + err.message);
   }
 }
 
@@ -316,9 +318,10 @@ let lastFlap = 0;
 function flap() {
   if (gameState !== 'play') return;
   const now = performance.now();
-  if (now - lastFlap < 100) return;
+  if (now - lastFlap < 80) return;
   lastFlap = now;
   bird.vy = flapPower;
+  
   for (let i = 0; i < 6; i++) {
     particles.push({
       x: bird.x - 10,
@@ -373,7 +376,7 @@ function update(delta = 1) {
 
   bird.vy += gravity * delta;
   bird.y += bird.vy * delta;
-  bird.rotation = Math.min(0.8, Math.max(-0.5, bird.vy * 0.04));
+  bird.rotation = Math.min(0.8, Math.max(-0.5, bird.vy * 0.08));
   bird.wingAngle += 0.3 * delta;
 
   frameCount += delta;
@@ -607,64 +610,9 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
-function setupMenuButtons() {
-  const buttons = [
-    { id: 'easy', diff: 'easy' },
-    { id: 'normal', diff: 'normal' },
-    { id: 'hard', diff: 'hard' }
-  ];
-  
-  buttons.forEach(({ id, diff }) => {
-    const btn = document.getElementById(id);
-    if (btn) {
-      const start = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        initGame(diff);
-      };
-      btn.addEventListener('click', start);
-      btn.addEventListener('touchstart', start, { passive: false });
-    }
-  });
-
-  const restartBtn = document.getElementById('restartBtn');
-  if (restartBtn) {
-    const doRestart = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      restart();
-    };
-    restartBtn.addEventListener('click', doRestart);
-    restartBtn.addEventListener('touchstart', doRestart, { passive: false });
-  }
-
-  const menuBtn = document.getElementById('menuBtn');
-  if (menuBtn) {
-    const goMenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      goToMenu();
-    };
-    menuBtn.addEventListener('click', goMenu);
-    menuBtn.addEventListener('touchstart', goMenu, { passive: false });
-  }
-}
-
-menu.addEventListener('click', (e) => e.stopPropagation());
-menu.addEventListener('touchstart', (e) => e.stopPropagation());
-gameOverDiv.addEventListener('click', (e) => e.stopPropagation());
-gameOverDiv.addEventListener('touchstart', (e) => e.stopPropagation());
-
-setupMenuButtons();
-
-canvas.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  if (gameState === 'play') flap();
-}, { passive: false });
-
-canvas.addEventListener('mousedown', (e) => {
-  if (e.button === 0 && gameState === 'play') {
-    e.preventDefault();
+// Interception des interactions sur canvas
+canvas.addEventListener('pointerdown', (e) => {
+  if (gameState === 'play') {
     flap();
   }
 });
@@ -677,7 +625,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('resize', resize);
-document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 
 // ===== MULTIJOUEUR =====
 let peer = null;
