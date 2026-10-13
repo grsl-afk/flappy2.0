@@ -254,9 +254,9 @@ function resize() {
   birdRadius = Math.min(width, height) * 0.028;
   pipeWidth = Math.min(width, height) * 0.09;
   pipeGap = Math.min(width, height) * 0.28;
-  gravity = height * 0.00085;
-  flapPower = -height * 0.012;
-  pipeSpeed = width * 0.0045;
+  gravity = height * 0.00065;
+  flapPower = -height * 0.010;
+  pipeSpeed = width * 0.0036;
   
   if (bird) {
     bird.radius = birdRadius;
@@ -284,8 +284,8 @@ function initGame(diff = 'normal') {
     particles = [];
     gameState = 'play';
     
-    gravity = height * 0.00085 * d.gravityMult;
-    pipeSpeed = width * 0.0045 * d.speedMult;
+    gravity = height * 0.00065 * d.gravityMult;
+    pipeSpeed = width * 0.0036 * d.speedMult;
     pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
     
     scoreDisplay.style.display = 'block';
@@ -635,7 +635,7 @@ let lastTime = 0;
 
 function loop(timestamp) {
   if (!lastTime) lastTime = timestamp;
-  const delta = Math.min((timestamp - lastTime) / 16.67, 2);
+  const delta = Math.min((timestamp - lastTime) / 16.67, 1.2); // Tighter cap for mobile
   lastTime = timestamp;
 
   try {
@@ -810,15 +810,13 @@ function joinGame() {
     });
 
     conn.on('data', (data) => {
-      console.log('Received from host:', data);
-      if (data.type === 'pipes') {
-        pipes = data.pipes.map(p => ({...p, passed: false}));
-      }
+      console.log('Guest received:', data);
       if (data.type === 'countdown') {
+        document.getElementById('multiMenu').style.display = 'none';
         startCountdown(data.seconds || 5, data.diff || 'normal');
       }
-      if (data.type === 'start') {
-        // Already handled by countdown end
+      if (data.type === 'pipes') {
+        pipes = (data.pipes || []).map(p => ({...p, passed: false}));
       }
       if (data.type === 'bird') {
         otherBirds[data.from] = data;
@@ -851,10 +849,10 @@ let countdownInterval = null;
 
 function startMultiGame(diff) {
   if (!isHost) return;
-  // Hide multi menu
   document.getElementById('multiMenu').style.display = 'none';
-  // Start countdown for everyone
+  // Send countdown to all guests
   broadcast({ type: 'countdown', seconds: 5, diff: diff });
+  // Start local countdown
   startCountdown(5, diff);
 }
 
@@ -890,7 +888,13 @@ function startCountdown(seconds, diff) {
 
 function broadcast(data) {
   connections.forEach(conn => {
-    if (conn.open) conn.send(data);
+    if (conn && conn.open) {
+      try {
+        conn.send(data);
+      } catch (e) {
+        console.warn('Send failed', e);
+      }
+    }
   });
 }
 
