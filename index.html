@@ -225,7 +225,7 @@ const bestScoreDisplay = document.getElementById('bestScoreDisplay');
 
 let width, height;
 let bird, pipes, score, bestScore, gameState, frameCount;
-let gravity, flapPower, pipeSpeed, pipeGap, pipeWidth, birdRadius;
+let gravity, flapPower, basePipeSpeed, currentPipeSpeed, pipeGap, pipeWidth, birdRadius;
 let currentDifficulty = 'normal';
 let particles = [];
 let clouds = [];
@@ -260,10 +260,11 @@ function updateMenuScores() {
   if (hardBtn) hardBtn.innerHTML = '🔴 Difficile <span style="font-size:14px;opacity:0.75">(' + getBestScore('hard') + ')</span>';
 }
 
+// spawnSpacingFactor permet d'espacer davantage les portes en mode Facile (valeur plus élevée = portes plus éloignées)
 const difficulties = {
-  easy: { speedMult: 0.72, gapMult: 1.35, gravityMult: 0.95, name: 'Facile' },
-  normal: { speedMult: 1.0, gapMult: 1.15, gravityMult: 1.15, name: 'Normal' },
-  hard: { speedMult: 1.30, gapMult: 1.0, gravityMult: 1.35, name: 'Difficile' }
+  easy: { speedMult: 0.72, gapMult: 1.0, gravityMult: 0.95, spawnSpacingFactor: 1.5, name: 'Facile' },
+  normal: { speedMult: 1.0, gapMult: 1.0, gravityMult: 1.15, spawnSpacingFactor: 1.15, name: 'Normal' },
+  hard: { speedMult: 1.30, gapMult: 1.0, gravityMult: 1.35, spawnSpacingFactor: 1.0, name: 'Difficile' }
 };
 
 function resize() {
@@ -275,11 +276,11 @@ function resize() {
   
   birdRadius = Math.min(width, height) * 0.028;
   pipeWidth = Math.min(width, height) * 0.09;
-  pipeGap = Math.min(width, height) * 0.30;
+  pipeGap = Math.min(width, height) * 0.235; // Écart de passage resserré sur tous les niveaux
   
   gravity = height * 0.00052;
   flapPower = -height * 0.0076;
-  pipeSpeed = width * 0.005;
+  basePipeSpeed = width * 0.005;
   
   if (bird) {
     bird.radius = birdRadius;
@@ -311,8 +312,9 @@ function initGame(diff = 'normal') {
     
     gravity = height * 0.00052 * d.gravityMult;
     flapPower = -height * 0.0076;
-    pipeSpeed = width * 0.005 * d.speedMult;
-    pipeGap = Math.min(width, height) * 0.30 * d.gapMult;
+    basePipeSpeed = width * 0.005 * d.speedMult;
+    currentPipeSpeed = basePipeSpeed;
+    pipeGap = Math.min(width, height) * 0.235 * d.gapMult;
     
     scoreDisplay.style.display = 'block';
     menu.style.display = 'none';
@@ -395,11 +397,9 @@ function spawnPipe(topHeight = null) {
     if (lastTopHeight === null) {
       tHeight = minTop + Math.random() * Math.max(50, maxTop - minTop);
     } else {
-      // Variation strictement bridée pour garantir qu'un saut ou une descente est toujours réalisable physiquement entre 2 tuyaux
       const maxDelta = height * 0.13; 
       let delta = (Math.random() - 0.5) * (maxDelta * 2);
       
-      // Enchaînement dynamique non linéaire tous les 3 tuyaux (alternance fluide haut/bas)
       if (pipeSpawnCounter % 3 === 0) {
         delta = (lastTopHeight > height * 0.4 ? -1 : 1) * (height * 0.09 + Math.random() * (height * 0.04));
       }
@@ -438,6 +438,11 @@ function checkCollision() {
 function update(delta = 1) {
   if (gameState !== 'play' && !(multiMode && (gameState === 'waiting' || gameState === 'spectate'))) return;
 
+  if (gameState === 'play') {
+    let speedMultiplier = 1 + Math.min(0.35, score * 0.015);
+    currentPipeSpeed = basePipeSpeed * speedMultiplier;
+  }
+
   if (bird && gameState === 'play') {
     bird.vy += gravity * delta;
     bird.y += bird.vy * delta;
@@ -446,17 +451,19 @@ function update(delta = 1) {
   }
 
   frameCount += delta;
-  const spawnRate = Math.floor(85 / difficulties[currentDifficulty].speedMult);
+  const dConfig = difficulties[currentDifficulty];
+  let baseSpawnRate = 85 / (currentPipeSpeed / basePipeSpeed);
+  let dynamicSpawnRate = Math.floor(baseSpawnRate * (dConfig.spawnSpacingFactor || 1.0));
   
-  if (frameCount >= spawnRate) {
+  if (frameCount >= dynamicSpawnRate) {
     if (!multiMode || isHost) {
       spawnPipe();
     }
-    frameCount -= spawnRate;
+    frameCount -= dynamicSpawnRate;
   }
 
   for (let p of pipes) {
-    p.x -= pipeSpeed * delta;
+    p.x -= currentPipeSpeed * delta;
     if (bird && !p.passed && p.x + pipeWidth < bird.x && gameState === 'play') {
       p.passed = true;
       score++;
