@@ -254,7 +254,7 @@ function resize() {
   birdRadius = Math.min(width, height) * 0.028;
   pipeWidth = Math.min(width, height) * 0.09;
   pipeGap = Math.min(width, height) * 0.28;
-  gravity = height * 0.00042;
+  gravity = height * 0.00028;
   flapPower = -height * 0.0115;
   pipeSpeed = width * 0.0045;
   
@@ -284,7 +284,7 @@ function initGame(diff = 'normal') {
     particles = [];
     gameState = 'play';
     
-    gravity = height * 0.00042 * d.gravityMult;
+    gravity = height * 0.00028 * d.gravityMult;
     pipeSpeed = width * 0.0045 * d.speedMult;
     pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
     
