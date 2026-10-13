@@ -171,9 +171,9 @@
   <div id="menu">
     <h1>Flappy Bird</h1>
     <p>Choisis un niveau ou multijoueur</p>
-    <button class="diff-btn" id="easy" onclick="initGame('easy')">🟢 Facile <span style="font-size:14px;opacity:0.8">(${getBestScore('easy')})</span></button>
-    <button class="diff-btn" id="normal" onclick="initGame('normal')">🔵 Normal <span style="font-size:14px;opacity:0.8">(${getBestScore('normal')})</span></button>
-    <button class="diff-btn" id="hard" onclick="initGame('hard')">🔴 Difficile <span style="font-size:14px;opacity:0.8">(${getBestScore('hard')})</span></button>
+    <button class="diff-btn" id="easy" onclick="initGame('easy')">🟢 Facile</button>
+    <button class="diff-btn" id="normal" onclick="initGame('normal')">🔵 Normal</button>
+    <button class="diff-btn" id="hard" onclick="initGame('hard')">🔴 Difficile</button>
     <button class="diff-btn" id="multiBtn" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7);">👥 Multijoueur</button>
   </div>
   <div id="multiMenu" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.9); padding:30px; border-radius:20px; text-align:center; pointer-events:auto; z-index:25;">
@@ -221,6 +221,15 @@ function getBestScore(diff) {
 
 function setBestScore(diff, score) {
   localStorage.setItem('flappyBest_' + diff, score);
+}
+
+function updateMenuScores() {
+  const easyBtn = document.getElementById('easy');
+  const normalBtn = document.getElementById('normal');
+  const hardBtn = document.getElementById('hard');
+  if (easyBtn) easyBtn.innerHTML = '🟢 Facile <span style="font-size:14px;opacity:0.75">(' + getBestScore('easy') + ')</span>';
+  if (normalBtn) normalBtn.innerHTML = '🔵 Normal <span style="font-size:14px;opacity:0.75">(' + getBestScore('normal') + ')</span>';
+  if (hardBtn) hardBtn.innerHTML = '🔴 Difficile <span style="font-size:14px;opacity:0.75">(' + getBestScore('hard') + ')</span>';
 }
 
 const difficulties = {
@@ -327,6 +336,7 @@ function goToMenu() {
   scoreDisplay.style.display = 'none';
   gameOverDiv.style.display = 'none';
   menu.style.display = 'block';
+  updateMenuScores();
 }
 
 function spawnPipe() {
@@ -491,56 +501,65 @@ function drawBird() {
 
 function drawPipes() {
   pipes.forEach(p => {
-    // Pipe body gradient (vertical for depth)
+    // Strong body gradient for volume
     const bodyGrad = ctx.createLinearGradient(p.x, 0, p.x + pipeWidth, 0);
-    bodyGrad.addColorStop(0, '#00a884');
-    bodyGrad.addColorStop(0.3, '#00cec9');
-    bodyGrad.addColorStop(0.7, '#00b894');
-    bodyGrad.addColorStop(1, '#00896f');
+    bodyGrad.addColorStop(0, '#007a5a');
+    bodyGrad.addColorStop(0.2, '#00a884');
+    bodyGrad.addColorStop(0.5, '#00d4b8');
+    bodyGrad.addColorStop(0.8, '#00b894');
+    bodyGrad.addColorStop(1, '#006b4f');
 
-    // Top pipe
+    // Top pipe body
     ctx.fillStyle = bodyGrad;
     ctx.fillRect(p.x, 0, pipeWidth, p.top);
 
-    // Top pipe left highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fillRect(p.x + 2, 0, 6, p.top);
+    // Strong left highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(p.x + 2, 0, 8, p.top);
 
-    // Top cap with relief
-    const capGrad = ctx.createLinearGradient(p.x - 10, p.top - 30, p.x - 10, p.top);
-    capGrad.addColorStop(0, '#00cec9');
-    capGrad.addColorStop(1, '#009874');
+    // Right shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(p.x + pipeWidth - 8, 0, 8, p.top);
+
+    // Top cap with strong relief
+    const capGrad = ctx.createLinearGradient(0, p.top - 36, 0, p.top);
+    capGrad.addColorStop(0, '#00f0d0');
+    capGrad.addColorStop(0.4, '#00cec9');
+    capGrad.addColorStop(1, '#007a5a');
     ctx.fillStyle = capGrad;
-    ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(p.x - 10, p.top - 30, pipeWidth + 20, 30, 8) : ctx.fillRect(p.x - 10, p.top - 30, pipeWidth + 20, 30);
-    if (ctx.roundRect) ctx.fill();
-    else ctx.fillRect(p.x - 10, p.top - 30, pipeWidth + 20, 30);
+    ctx.fillRect(p.x - 12, p.top - 36, pipeWidth + 24, 36);
 
-    // Cap highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.fillRect(p.x - 6, p.top - 28, pipeWidth + 12, 8);
+    // Cap top highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillRect(p.x - 8, p.top - 34, pipeWidth + 16, 12);
 
-    // Bottom pipe
+    // Cap bottom shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(p.x - 10, p.top - 6, pipeWidth + 20, 6);
+
+    // Bottom pipe body
     ctx.fillStyle = bodyGrad;
     ctx.fillRect(p.x, p.bottom, pipeWidth, height - p.bottom);
 
-    // Bottom pipe highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fillRect(p.x + 2, p.bottom, 6, height - p.bottom);
+    // Bottom highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(p.x + 2, p.bottom, 8, height - p.bottom);
+
+    // Bottom shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(p.x + pipeWidth - 8, p.bottom, 8, height - p.bottom);
 
     // Bottom cap
     ctx.fillStyle = capGrad;
-    if (ctx.roundRect) {
-      ctx.beginPath();
-      ctx.roundRect(p.x - 10, p.bottom, pipeWidth + 20, 30, 8);
-      ctx.fill();
-    } else {
-      ctx.fillRect(p.x - 10, p.bottom, pipeWidth + 20, 30);
-    }
+    ctx.fillRect(p.x - 12, p.bottom, pipeWidth + 24, 36);
 
     // Bottom cap highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.fillRect(p.x - 6, p.bottom + 2, pipeWidth + 12, 8);
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillRect(p.x - 8, p.bottom + 2, pipeWidth + 16, 12);
+
+    // Bottom cap shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(p.x - 10, p.bottom + 30, pipeWidth + 20, 6);
   });
 }
 
@@ -828,6 +847,7 @@ draw = function() {
 // Button for multi
 document.getElementById('multiBtn').addEventListener('click', showMultiMenu);
 
+updateMenuScores();
 resize();
 loop();
 </script>
