@@ -284,8 +284,8 @@ function initGame(diff = 'normal') {
     particles = [];
     gameState = 'play';
     
-    gravity = height * 0.00065 * d.gravityMult;
-    pipeSpeed = width * 0.0036 * d.speedMult;
+    gravity = height * 0.00032 * d.gravityMult;
+    pipeSpeed = width * 0.0022 * d.speedMult;
     pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
     
     scoreDisplay.style.display = 'block';
@@ -411,6 +411,22 @@ function update(delta = 1) {
 }
 
 function gameOver() {
+  if (multiMode) {
+    // In multi, stay in the instance
+    gameState = 'waiting';
+    bird = null;
+    // Notify others
+    broadcast({ type: 'playerDied', from: peer ? peer.id : 'local' });
+    // Show waiting message
+    const waitEl = document.getElementById('waitingMsg') || document.createElement('div');
+    waitEl.id = 'waitingMsg';
+    waitEl.style.cssText = 'position:absolute; top:40%; left:50%; transform:translate(-50%,-50%); color:white; font-size:22px; text-align:center; z-index:25; pointer-events:none; background:rgba(0,0,0,0.6); padding:20px; border-radius:16px;';
+    waitEl.innerHTML = 'Tu as perdu !<br>En attente des autres joueurs...';
+    document.getElementById('ui').appendChild(waitEl);
+    return;
+  }
+
+  // Solo mode
   gameState = 'over';
   if (score > bestScore) {
     bestScore = score;
@@ -799,6 +815,8 @@ function joinGame() {
     conn.on('data', (data) => {
       console.log('DATA received by guest:', data);
       if (data.type === 'countdown') {
+        const wait = document.getElementById('waitingMsg');
+        if (wait) wait.remove();
         document.getElementById('multiMenu').style.display = 'none';
         menu.style.display = 'none';
         startCountdown(data.seconds, data.diff);
@@ -826,10 +844,11 @@ let countdownInterval = null;
 
 function startMultiGame(diff) {
   if (!isHost) return;
+  // Clear waiting messages
+  const wait = document.getElementById('waitingMsg');
+  if (wait) wait.remove();
   document.getElementById('multiMenu').style.display = 'none';
-  // Send countdown to all guests
   broadcast({ type: 'countdown', seconds: 5, diff: diff });
-  // Start local countdown
   startCountdown(5, diff);
 }
 
