@@ -284,7 +284,7 @@ function initGame(diff = 'normal') {
     particles = [];
     gameState = 'play';
     
-    gravity = height * 0.0007 * d.gravityMult;
+    gravity = height * 0.00052 * d.gravityMult;
     pipeSpeed = width * 0.0045 * d.speedMult;
     pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
     
@@ -420,8 +420,9 @@ function gameOver() {
     // Show waiting message
     const waitEl = document.getElementById('waitingMsg') || document.createElement('div');
     waitEl.id = 'waitingMsg';
-    waitEl.style.cssText = 'position:absolute; top:40%; left:50%; transform:translate(-50%,-50%); color:white; font-size:22px; text-align:center; z-index:25; pointer-events:none; background:rgba(0,0,0,0.6); padding:20px; border-radius:16px;';
-    waitEl.innerHTML = 'Tu as perdu !<br>En attente des autres joueurs...';
+    waitEl.style.cssText = 'position:absolute; top:40%; left:50%; transform:translate(-50%,-50%); color:white; font-size:22px; text-align:center; z-index:25; pointer-events:auto; background:rgba(0,0,0,0.6); padding:20px; border-radius:16px;';
+    waitEl.innerHTML = 'Tu as perdu !<br>En attente des autres joueurs...<br><br>' + 
+      (isHost ? '<button onclick="showRestartOptions()" style="padding:12px 24px; background:#f4d03f; border:none; border-radius:10px; font-weight:700; cursor:pointer; pointer-events:auto;">Relancer une partie</button>' : '');
     document.getElementById('ui').appendChild(waitEl);
     return;
   }
@@ -856,8 +857,21 @@ function updatePlayersList() {
 let countdown = 0;
 let countdownInterval = null;
 
+function showRestartOptions() {
+  document.getElementById('multiMenu').style.display = 'block';
+  document.getElementById('startButtons').style.display = 'block';
+  const wait = document.getElementById('waitingMsg');
+  if (wait) wait.remove();
+}
+
 function startMultiGame(diff) {
   if (!isHost) return;
+  const wait = document.getElementById('waitingMsg');
+  if (wait) wait.remove();
+  document.getElementById('multiMenu').style.display = 'none';
+  broadcast({ type: 'countdown', seconds: 5, diff: diff });
+  startCountdown(5, diff);
+}
   // Clear waiting messages
   const wait = document.getElementById('waitingMsg');
   if (wait) wait.remove();
