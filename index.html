@@ -254,7 +254,6 @@ function resize() {
   pipeWidth = Math.min(width, height) * 0.09;
   pipeGap = Math.min(width, height) * 0.28;
   
-  // Physique ajustée pour des sauts plus fluides et contrôlés
   gravity = height * 0.00045;
   flapPower = -height * 0.0072;
   pipeSpeed = width * 0.0045;
@@ -349,16 +348,27 @@ function goToMenu() {
   updateMenuScores();
 }
 
-function spawnPipe() {
+function spawnPipe(topHeight = null) {
   const minTop = height * 0.12;
   const maxTop = height - pipeGap - height * 0.18;
-  const topHeight = minTop + Math.random() * Math.max(50, maxTop - minTop);
+  
+  // Si l'hôte fournit la hauteur, on l'utilise (synchro multi), sinon génération aléatoire (solo ou hôte)
+  const tHeight = topHeight !== null ? topHeight : (minTop + Math.random() * Math.max(50, maxTop - minTop));
+  
   pipes.push({
     x: width + 20,
-    top: topHeight,
-    bottom: topHeight + pipeGap,
+    top: tHeight,
+    bottom: tHeight + pipeGap,
     passed: false
   });
+
+  // Si on est l'hôte en multijoueur, on diffuse ce tuyau à tout le monde
+  if (multiMode && isHost && topHeight === null) {
+    broadcast({
+      type: 'spawnPipe',
+      top: tHeight
+    });
+  }
 }
 
 function checkCollision() {
@@ -381,8 +391,12 @@ function update(delta = 1) {
 
   frameCount += delta;
   const spawnRate = Math.floor(90 / difficulties[currentDifficulty].speedMult);
+  
+  // Seul l'hôte (ou le joueur solo) génère les nouveaux tuyaux
   if (frameCount >= spawnRate) {
-    spawnPipe();
+    if (!multiMode || isHost) {
+      spawnPipe();
+    }
     frameCount -= spawnRate;
   }
 
@@ -610,7 +624,6 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
-// Interception des interactions sur canvas
 canvas.addEventListener('pointerdown', (e) => {
   if (gameState === 'play') {
     flap();
@@ -715,6 +728,10 @@ function joinGame() {
         document.getElementById('multiMenu').style.display = 'none';
         menu.style.display = 'none';
         startCountdown(data.seconds, data.diff);
+      }
+      if (data.type === 'spawnPipe') {
+        // Le client reçoit le tuyau généré par l'hôte et l'ajoute au même endroit
+        spawnPipe(data.top);
       }
       if (data.type === 'bird') {
         otherBirds[data.from] = data;
