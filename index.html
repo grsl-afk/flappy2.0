@@ -814,8 +814,11 @@ function joinGame() {
       if (data.type === 'pipes') {
         pipes = data.pipes.map(p => ({...p, passed: false}));
       }
+      if (data.type === 'countdown') {
+        startCountdown(data.seconds || 5, data.diff || 'normal');
+      }
       if (data.type === 'start') {
-        initGame(data.diff || 'normal');
+        // Already handled by countdown end
       }
       if (data.type === 'bird') {
         otherBirds[data.from] = data;
@@ -835,16 +838,54 @@ function joinGame() {
 
 function updatePlayersList() {
   const count = connections.length + 1;
-  document.getElementById('playersList').textContent = count + ' joueur(s) connecté(s)';
-  if (isHost && count > 1) {
-    document.getElementById('startButtons').style.display = 'block';
+  const listEl = document.getElementById('playersList');
+  const startEl = document.getElementById('startButtons');
+  if (listEl) listEl.textContent = count + ' joueur(s) connecté(s)';
+  if (isHost && startEl) {
+    startEl.style.display = 'block';
   }
 }
 
+let countdown = 0;
+let countdownInterval = null;
+
 function startMultiGame(diff) {
   if (!isHost) return;
-  initGame(diff);
-  broadcast({ type: 'start', diff: diff });
+  // Hide multi menu
+  document.getElementById('multiMenu').style.display = 'none';
+  // Start countdown for everyone
+  broadcast({ type: 'countdown', seconds: 5, diff: diff });
+  startCountdown(5, diff);
+}
+
+function startCountdown(seconds, diff) {
+  countdown = seconds;
+  gameState = 'countdown';
+  const cdEl = document.getElementById('countdownDisplay');
+  if (!cdEl) {
+    const div = document.createElement('div');
+    div.id = 'countdownDisplay';
+    div.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:80px; font-weight:800; color:#f4d03f; text-shadow:0 4px 20px rgba(0,0,0,0.5); z-index:30; pointer-events:none;';
+    document.getElementById('ui').appendChild(div);
+  }
+  const display = document.getElementById('countdownDisplay');
+  display.style.display = 'block';
+
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(() => {
+    countdown--;
+    if (countdown > 0) {
+      display.textContent = countdown;
+    } else {
+      display.style.display = 'none';
+      clearInterval(countdownInterval);
+      initGame(diff);
+      if (isHost) {
+        broadcast({ type: 'start', diff: diff });
+      }
+    }
+  }, 1000);
+  display.textContent = countdown;
 }
 
 function broadcast(data) {
