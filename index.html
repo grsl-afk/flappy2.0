@@ -230,7 +230,7 @@ let currentDifficulty = 'normal';
 let particles = [];
 let clouds = [];
 let lastTopHeight = null;
-let pipeSpawnCounter = 0; // Compteur pour enchaînements complexes
+let pipeSpawnCounter = 0;
 
 let myPseudo = localStorage.getItem('flappyPseudo') || 'Joueur';
 document.addEventListener("DOMContentLoaded", () => {
@@ -260,11 +260,10 @@ function updateMenuScores() {
   if (hardBtn) hardBtn.innerHTML = '🔴 Difficile <span style="font-size:14px;opacity:0.75">(' + getBestScore('hard') + ')</span>';
 }
 
-// Difficulté augmentée d'un cran (vitesse, resserrement de l'écart et gravité plus prononcée)
 const difficulties = {
   easy: { speedMult: 0.72, gapMult: 1.35, gravityMult: 0.95, name: 'Facile' },
-  normal: { speedMult: 1.0, gapMult: 1.12, gravityMult: 1.15, name: 'Normal' },
-  hard: { speedMult: 1.30, gapMult: 0.98, gravityMult: 1.35, name: 'Difficile' }
+  normal: { speedMult: 1.0, gapMult: 1.15, gravityMult: 1.15, name: 'Normal' },
+  hard: { speedMult: 1.30, gapMult: 1.0, gravityMult: 1.35, name: 'Difficile' }
 };
 
 function resize() {
@@ -276,7 +275,7 @@ function resize() {
   
   birdRadius = Math.min(width, height) * 0.028;
   pipeWidth = Math.min(width, height) * 0.09;
-  pipeGap = Math.min(width, height) * 0.28;
+  pipeGap = Math.min(width, height) * 0.30;
   
   gravity = height * 0.00052;
   flapPower = -height * 0.0076;
@@ -313,7 +312,7 @@ function initGame(diff = 'normal') {
     gravity = height * 0.00052 * d.gravityMult;
     flapPower = -height * 0.0076;
     pipeSpeed = width * 0.005 * d.speedMult;
-    pipeGap = Math.min(width, height) * 0.28 * d.gapMult;
+    pipeGap = Math.min(width, height) * 0.30 * d.gapMult;
     
     scoreDisplay.style.display = 'block';
     menu.style.display = 'none';
@@ -385,27 +384,27 @@ function goToMenu() {
 }
 
 function spawnPipe(topHeight = null) {
-  const minTop = height * 0.10;
-  const maxTop = height - pipeGap - height * 0.12;
+  const minTop = height * 0.12;
+  const maxTop = height - pipeGap - height * 0.15;
   
   let tHeight;
   if (topHeight !== null) {
     tHeight = topHeight;
   } else {
     pipeSpawnCounter++;
-    // Enchainement complexe et non linéaire toutes les 3 ou 4 portes (cassure de rythme marquée)
-    if (pipeSpawnCounter % 4 === 0) {
-      // Alternance brusque (haut / bas prononcé)
-      tHeight = Math.random() > 0.5 ? minTop + 20 : maxTop - 20;
+    if (lastTopHeight === null) {
+      tHeight = minTop + Math.random() * Math.max(50, maxTop - minTop);
     } else {
-      // Vagues fluides avec amplitude dynamique
-      if (lastTopHeight === null) {
-        tHeight = minTop + Math.random() * Math.max(50, maxTop - minTop);
-      } else {
-        const maxVariation = height * 0.22; 
-        let delta = (Math.random() - 0.5) * (maxVariation * 2);
-        tHeight = Math.max(minTop, Math.min(maxTop, lastTopHeight + delta));
+      // Variation strictement bridée pour garantir qu'un saut ou une descente est toujours réalisable physiquement entre 2 tuyaux
+      const maxDelta = height * 0.13; 
+      let delta = (Math.random() - 0.5) * (maxDelta * 2);
+      
+      // Enchaînement dynamique non linéaire tous les 3 tuyaux (alternance fluide haut/bas)
+      if (pipeSpawnCounter % 3 === 0) {
+        delta = (lastTopHeight > height * 0.4 ? -1 : 1) * (height * 0.09 + Math.random() * (height * 0.04));
       }
+
+      tHeight = Math.max(minTop, Math.min(maxTop, lastTopHeight + delta));
     }
     lastTopHeight = tHeight;
   }
@@ -447,7 +446,7 @@ function update(delta = 1) {
   }
 
   frameCount += delta;
-  const spawnRate = Math.floor(82 / difficulties[currentDifficulty].speedMult);
+  const spawnRate = Math.floor(85 / difficulties[currentDifficulty].speedMult);
   
   if (frameCount >= spawnRate) {
     if (!multiMode || isHost) {
