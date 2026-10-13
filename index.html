@@ -179,7 +179,6 @@
   <div id="multiMenu" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.9); padding:25px; border-radius:20px; text-align:center; pointer-events:auto; z-index:25; width:90%; max-width:340px;">
     <h2 style="color:white; margin-bottom:10px; font-size:20px;">Multijoueur (Max 8)</h2>
     
-    <!-- Champ de Pseudo -->
     <input id="pseudoInput" placeholder="Ton Pseudo" maxlength="12" oninput="savePseudo(this.value)" style="padding:8px; margin:4px 0 10px 0; border-radius:8px; border:none; width:100%; font-size:16px; text-align:center; font-weight:700;">
 
     <button class="diff-btn" onclick="hostGame()" style="background:#2ecc71; padding:12px; margin:6px 0;">Héberger une partie</button>
@@ -188,7 +187,6 @@
     <button class="diff-btn" onclick="joinGame()" style="background:#3498db; padding:12px; margin:6px 0;">Rejoindre</button>
     <button class="diff-btn" onclick="backToMainMenu()" style="background:#636e72; padding:10px; margin-top:8px;">Retour</button>
     
-    <!-- Liste des joueurs connectés dans le salon -->
     <div style="margin-top:10px; max-height:100px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:8px; padding:6px;">
       <p style="color:#aaa; font-size:12px; margin-bottom:4px;">Joueurs dans le salon :</p>
       <ul id="playersNamesList" style="color:white; font-size:13px; list-style-type:none; padding:0;"></ul>
@@ -232,7 +230,6 @@ let currentDifficulty = 'normal';
 let particles = [];
 let clouds = [];
 
-// Gestion du pseudo
 let myPseudo = localStorage.getItem('flappyPseudo') || 'Joueur';
 document.addEventListener("DOMContentLoaded", () => {
   const pseudoInputEl = document.getElementById('pseudoInput');
@@ -320,6 +317,8 @@ function initGame(diff = 'normal') {
     
     const waitMsg = document.getElementById('waitingMsg');
     if (waitMsg) waitMsg.remove();
+    const rankEl = document.getElementById('roundRankingModal');
+    if (rankEl) rankEl.remove();
 
     updateScore();
     
@@ -375,6 +374,8 @@ function goToMenu() {
   menu.style.display = 'block';
   const waitMsg = document.getElementById('waitingMsg');
   if (waitMsg) waitMsg.remove();
+  const rankEl = document.getElementById('roundRankingModal');
+  if (rankEl) rankEl.remove();
   updateMenuScores();
 }
 
@@ -460,17 +461,20 @@ function gameOver() {
   if (multiMode) {
     gameState = 'waiting';
     bird = null;
-    broadcast({ type: 'playerDied', from: peer ? peer.id : 'local', alive: false, score: score });
+    broadcast({ type: 'playerDied', from: peer ? peer.id : 'local', alive: false, score: score, pseudo: myPseudo });
     
     let waitEl = document.getElementById('waitingMsg');
     if (!waitEl) {
       waitEl = document.createElement('div');
       waitEl.id = 'waitingMsg';
-      waitEl.style.cssText = 'position:absolute; top:20px; left:50%; transform:translateX(-50%); color:white; font-size:16px; text-align:center; z-index:25; pointer-events:auto; background:rgba(0,0,0,0.7); padding:10px 16px; border-radius:12px;';
+      waitEl.style.cssText = 'position:absolute; top:20px; left:50%; transform:translateX(-50%); color:white; font-size:15px; text-align:center; z-index:25; pointer-events:auto; background:rgba(0,0,0,0.7); padding:10px 16px; border-radius:12px;';
       document.getElementById('ui').appendChild(waitEl);
     }
-    waitEl.innerHTML = '💥 Game Over ! Mode spectateur (Suivi du Leader).<br>' + 
-      (isHost ? '<button onclick="showRestartOptions()" style="margin-top:6px; padding:6px 12px; background:#f4d03f; border:none; border-radius:6px; font-weight:700; cursor:pointer; pointer-events:auto;">Relancer</button>' : '');
+    waitEl.innerHTML = '💥 Game Over ! En attente de la fin de manche...<br>' +
+      '<button onclick="quitMultiGame()" style="margin-top:6px; padding:6px 12px; background:#e74c3c; color:white; border:none; border-radius:6px; font-weight:700; cursor:pointer; pointer-events:auto;">🚪 Quitter la partie</button>';
+    
+    // Vérifier si tout le monde est mort pour déclencher l'affichage du classement de manche
+    checkRoundOver();
     return;
   }
 
@@ -483,6 +487,105 @@ function gameOver() {
   bestScoreDisplay.textContent = bestScore;
   scoreDisplay.style.display = 'none';
   gameOverDiv.style.display = 'block';
+}
+
+function checkRoundOver() {
+  // Collecter l'état de tous les joueurs
+  let allDead = (bird === null);
+  Object.values(otherBirds).forEach(ob => {
+    if (ob.alive !== false) allDead = false;
+  });
+
+  if (allDead && isHost) {
+    // L'hôte calcule le classement de la manche et le score cumulé général
+    let roundResults = [{ name: myPseudo, score: score }];
+    Object.values(otherBirds).forEach(ob => {
+      roundResults.push({ name: ob.pseudo || 'Joueur', score: ob.score || 0 });
+    });
+
+    // Tri de la manche actuelle
+    roundResults.sort((a, b) => b.score - a.score);
+
+    // Mettre à jour le cumul général
+    roundResults.forEach(r => {
+      generalScores[r.name] = (generalScores[r.name] || 0) + r.score;
+    });
+
+    let generalRanking = Object.entries(generalScores).map(([name, total]) => ({ name, total }));
+    generalRanking.sort((a, b) => b.total - a.total);
+
+    // Diffuser à tous les participants
+    const packet = { type: 'roundOver', roundResults, generalRanking };
+    broadcast(packet);
+    showRoundRanking(roundResults, generalRanking);
+  }
+}
+
+function showRoundRanking(roundResults, generalRanking) {
+  const waitEl = document.getElementById('waitingMsg');
+  if (waitEl) waitEl.remove();
+
+  let modal = document.getElementById('roundRankingModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'roundRankingModal';
+    modal.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.95); padding:20px; border-radius:20px; text-align:center; z-index:35; color:white; width:90%; max-width:320px; pointer-events:auto; border:1px solid rgba(255,255,255,0.2);';
+    document.getElementById('ui').appendChild(modal);
+  }
+
+  let html = '<h3 style="color:#f4d03f; margin-bottom:10px; font-size:20px;">📊 Fin de Manche</h3>';
+  
+  html += '<p style="font-size:14px; font-weight:700; margin-bottom:4px; color:#3498db;">Classement de la Manche :</p>';
+  html += '<ul style="list-style:none; padding:0; margin-bottom:12px; font-size:13px; background:rgba(0,0,0,0.3); border-radius:8px; padding:6px;">';
+  roundResults.forEach((r, i) => {
+    html += '<li style="padding:2px 0;">' + (i === 0 ? '🥇 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : '👤 ') + r.name + ' : <b>' + r.score + ' pts</b></li>';
+  });
+  html += '</ul>';
+
+  html += '<p style="font-size:14px; font-weight:700; margin-bottom:4px; color:#2ecc71;">Classement Général Cumulé :</p>';
+  html += '<ul style="list-style:none; padding:0; margin-bottom:16px; font-size:13px; background:rgba(0,0,0,0.3); border-radius:8px; padding:6px;">';
+  generalRanking.forEach((g, i) => {
+    html += '<li style="padding:2px 0;">' + (i === 0 ? '👑 ' : '• ') + g.name + ' : <b>' + g.total + ' pts</b></li>';
+  });
+  html += '</ul>';
+
+  if (isHost) {
+    html += '<button onclick="startMultiGame(currentDifficulty)" style="padding:10px 20px; background:#2ecc71; color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer; margin-right:6px;">Manche Suivante</button>';
+  } else {
+    html += '<p style="color:#aaa; font-size:12px; margin-bottom:8px;">En attente de l\'hôte pour relancer...</p>';
+  }
+  html += '<button onclick="quitMultiGame()" style="padding:10px 20px; background:#e74c3c; color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">Quitter</button>';
+
+  modal.innerHTML = html;
+}
+
+function quitMultiGame() {
+  // Afficher le bilan général final pour le joueur qui quitte
+  let finalRanking = Object.entries(generalScores).map(([name, total]) => ({ name, total }));
+  finalRanking.sort((a, b) => b.total - a.total);
+
+  let modal = document.getElementById('roundRankingModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'roundRankingModal';
+    modal.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(20,20,40,0.95); padding:20px; border-radius:20px; text-align:center; z-index:35; color:white; width:90%; max-width:320px; pointer-events:auto; border:1px solid rgba(255,255,255,0.2);';
+    document.getElementById('ui').appendChild(modal);
+  }
+
+  let html = '<h3 style="color:#e74c3c; margin-bottom:10px; font-size:20px;">🏆 Bilan Général Définitif</h3>';
+  html += '<ul style="list-style:none; padding:0; margin-bottom:16px; font-size:14px; background:rgba(0,0,0,0.3); border-radius:8px; padding:8px;">';
+  finalRanking.forEach((g, i) => {
+    html += '<li style="padding:3px 0;">' + (i === 0 ? '👑 ' : '• ') + g.name + ' : <b>' + g.total + ' pts</b></li>';
+  });
+  html += '</ul>';
+  html += '<button onclick="backToMainMenu()" style="padding:12px 24px; background:#636e72; color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer;">Retour au Menu</button>';
+
+  modal.innerHTML = html;
+  
+  // Notifier les autres si on quitte
+  if (clientConn && clientConn.open) {
+    clientConn.send({ type: 'playerLeft', pseudo: myPseudo });
+  }
 }
 
 function drawBird(bX, bY, bRot, bWing, bColor, pName = '') {
@@ -509,7 +612,6 @@ function drawBird(bX, bY, bRot, bWing, bColor, pName = '') {
   ctx.ellipse(-birdRadius*0.25, -birdRadius*0.35, birdRadius*0.5, birdRadius*0.3, -0.4, 0, Math.PI * 2);
   ctx.fill();
 
-  // Aile
   ctx.save();
   ctx.rotate(Math.sin(bWing || 0) * 0.45);
   ctx.fillStyle = '#e17055';
@@ -518,7 +620,6 @@ function drawBird(bX, bY, bRot, bWing, bColor, pName = '') {
   ctx.fill();
   ctx.restore();
 
-  // Œil
   ctx.fillStyle = '#fff';
   ctx.beginPath();
   ctx.arc(birdRadius * 0.28, -birdRadius * 0.18, birdRadius * 0.34, 0, Math.PI * 2);
@@ -528,7 +629,6 @@ function drawBird(bX, bY, bRot, bWing, bColor, pName = '') {
   ctx.arc(birdRadius * 0.4, -birdRadius * 0.16, birdRadius * 0.17, 0, Math.PI * 2);
   ctx.fill();
 
-  // Bec
   ctx.fillStyle = '#ff9f43';
   ctx.beginPath();
   ctx.moveTo(birdRadius * 0.65, -3);
@@ -539,7 +639,6 @@ function drawBird(bX, bY, bRot, bWing, bColor, pName = '') {
 
   ctx.restore();
 
-  // Affichage du Pseudo
   if (pName) {
     ctx.save();
     ctx.fillStyle = 'white';
@@ -628,30 +727,20 @@ function draw() {
     drawGround();
     drawParticles();
     
-    // Dessiner son propre oiseau si vivant
     if (bird && gameState === 'play') {
       drawBird(bird.x, bird.y, bird.rotation, bird.wingAngle, '#f4d03f', myPseudo + ' (Moi)');
     }
 
-    // Gestion du Multijoueur & Mode Spectateur ciblé sur le Leader
     if (multiMode) {
       let activePlayers = [];
       
       if (bird && gameState === 'play') {
-        activePlayers.push({
-          id: peer ? peer.id : 'local',
-          score: score,
-          name: myPseudo
-        });
+        activePlayers.push({ id: peer ? peer.id : 'local', score: score, name: myPseudo });
       }
 
       Object.entries(otherBirds).forEach(([id, ob]) => {
         if (ob.alive !== false && ob.y) {
-          activePlayers.push({
-            id: id,
-            score: ob.score || 0,
-            name: ob.pseudo || 'Joueur'
-          });
+          activePlayers.push({ id: id, score: ob.score || 0, name: ob.pseudo || 'Joueur' });
         }
       });
 
@@ -666,11 +755,10 @@ function draw() {
         ctx.fillStyle = '#f4d03f';
         ctx.font = 'bold 13px Nunito';
         ctx.textAlign = 'center';
-        ctx.fillText('👁️ Mode Spectateur : Suivi du Leader (' + leader.name + ')', width / 2, 75);
+        ctx.fillText('👁️ Mode Spectateur : Suivi du Leader (' + leader.name + ')', width / 2, 85);
         ctx.restore();
       }
 
-      // Dessiner les oiseaux des autres joueurs
       Object.entries(otherBirds).forEach(([id, ob], idx) => {
         if (ob.alive === false || !ob.y) return;
         let isLeader = leader && leader.id === id;
@@ -709,7 +797,7 @@ document.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', resize);
 
-// ===== MULTIJOUEUR (Pseudos + Salon + 8 joueurs) =====
+// ===== MULTIJOUEUR (Classements + Scores Cumulés + Quitter) =====
 let peer = null;
 let connections = [];
 let isHost = false;
@@ -718,6 +806,7 @@ let otherBirds = {};
 let otherPseudos = {};
 let multiMode = false;
 let clientConn = null;
+let generalScores = {}; // { pseudo: scoreTotal }
 const birdColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e84393', '#00cec9'];
 
 function showMultiMenu() {
@@ -731,11 +820,14 @@ function backToMainMenu() {
   document.getElementById('menu').style.display = 'block';
   const waitMsg = document.getElementById('waitingMsg');
   if (waitMsg) waitMsg.remove();
+  const rankEl = document.getElementById('roundRankingModal');
+  if (rankEl) rankEl.remove();
   if (peer) peer.destroy();
   peer = null;
   connections = [];
   otherBirds = {};
   otherPseudos = {};
+  generalScores = {};
   multiMode = false;
 }
 
@@ -743,6 +835,7 @@ function hostGame() {
   isHost = true;
   multiMode = true;
   roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+  generalScores = {};
 
   peer = new Peer('flappy-' + roomCode);
 
@@ -775,7 +868,17 @@ function hostGame() {
         otherBirds[conn.peer] = data;
       }
       if (data.type === 'playerDied') {
-        if (otherBirds[conn.peer]) otherBirds[conn.peer].alive = false;
+        if (otherBirds[conn.peer]) {
+          otherBirds[conn.peer].alive = false;
+          otherBirds[conn.peer].score = data.score;
+        }
+        checkRoundOver();
+      }
+      if (data.type === 'playerLeft') {
+        delete otherBirds[conn.peer];
+        delete otherPseudos[conn.peer];
+        updatePlayersListUI();
+        broadcastRoomList();
       }
     });
     conn.on('close', () => {
@@ -798,6 +901,7 @@ function joinGame() {
   }
   isHost = false;
   multiMode = true;
+  generalScores = {};
 
   peer = new Peer();
 
@@ -808,7 +912,6 @@ function joinGame() {
 
     conn.on('open', () => {
       document.getElementById('playersNamesList').innerHTML = '<li>Connecté ! En attente...</li>';
-      // Envoyer son pseudo dès la connexion
       conn.send({ type: 'setPseudo', pseudo: myPseudo });
     });
 
@@ -816,6 +919,8 @@ function joinGame() {
       if (data.type === 'countdown') {
         const wait = document.getElementById('waitingMsg');
         if (wait) wait.remove();
+        const rankEl = document.getElementById('roundRankingModal');
+        if (rankEl) rankEl.remove();
         document.getElementById('multiMenu').style.display = 'none';
         menu.style.display = 'none';
         startCountdown(data.seconds, data.diff);
@@ -831,6 +936,9 @@ function joinGame() {
       }
       if (data.type === 'playerDied') {
         if (otherBirds[data.from]) otherBirds[data.from].alive = false;
+      }
+      if (data.type === 'roundOver') {
+        showRoundRanking(data.roundResults, data.generalRanking);
       }
       if (data.type === 'error') {
         alert(data.msg);
@@ -872,7 +980,6 @@ function updateClientPlayersList(playersData) {
 
 function broadcastRoomList() {
   if (!isHost) return;
-  // Construire la liste des pseudos avec l'hôte en premier
   let playersList = [myPseudo + ' (Hôte)'];
   connections.forEach(conn => {
     playersList.push(otherPseudos[conn.peer] || 'Joueur');
@@ -883,17 +990,12 @@ function broadcastRoomList() {
 let countdown = 0;
 let countdownInterval = null;
 
-function showRestartOptions() {
-  document.getElementById('multiMenu').style.display = 'block';
-  document.getElementById('startButtons').style.display = 'block';
-  const wait = document.getElementById('waitingMsg');
-  if (wait) wait.remove();
-}
-
 function startMultiGame(diff) {
   if (!isHost) return;
   const wait = document.getElementById('waitingMsg');
   if (wait) wait.remove();
+  const rankEl = document.getElementById('roundRankingModal');
+  if (rankEl) rankEl.remove();
   document.getElementById('multiMenu').style.display = 'none';
   broadcast({ type: 'countdown', seconds: 5, diff: diff });
   startCountdown(5, diff);
