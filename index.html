@@ -260,8 +260,9 @@ function updateMenuScores() {
   if (hardBtn) hardBtn.innerHTML = '🔴 Difficile <span style="font-size:14px;opacity:0.75">(' + getBestScore('hard') + ')</span>';
 }
 
+// gapMult augmenté à 1.35 pour le mode Facile (portes encore plus larges et confortables)
 const difficulties = {
-  easy: { speedMult: 0.72, gapMult: 1.18, gravityMult: 0.95, spawnSpacingFactor: 1.5, name: 'Facile' },
+  easy: { speedMult: 0.72, gapMult: 1.35, gravityMult: 0.95, spawnSpacingFactor: 1.5, name: 'Facile' },
   normal: { speedMult: 1.0, gapMult: 1.0, gravityMult: 1.15, spawnSpacingFactor: 1.15, name: 'Normal' },
   hard: { speedMult: 1.30, gapMult: 1.0, gravityMult: 1.35, spawnSpacingFactor: 1.0, name: 'Difficile' }
 };
